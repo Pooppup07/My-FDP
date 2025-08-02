@@ -1,0 +1,8 @@
+{
+  "short_name": "FDP Calc",
+  "name": "FDP & Rest Calculator",
+  "start_url": "./",
+  "display": "standalone",
+  "theme_color": "#1a202c",
+  "background_color": "#1a202c"
+}
