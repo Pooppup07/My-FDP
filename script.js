@@ -1,32 +1,67 @@
-// --- FDP & Rest Calculation Logic ---
-const TABLE_A_FDP_MINUTES = { "0000-0359": [540], "0400-0459": [600], "0500-0559": [720, 675, 630, 585, 540], "0600-0759": [780, 735, 690, 645, 600], "0800-1259": [750, 705, 660, 615, 570, 540], "1300-1659": [720, 675, 630, 585, 540], "1700-2159": [660, 615, 570, 540], "2200-2359": [540, 540] };
+// ▼▼▼ ตาราง FDP ใหม่ ตามที่คุณระบุ (แปลงเป็นนาที) ▼▼▼
+const TABLE_A_FDP_MINUTES = {
+    // 06:00 - 07:59
+    "0600-0759": [780, 735, 705, 675, 645, 585, 540, 540], // 13:00, 12:15, 11:45, ...
+    // 08:00 - 14:59
+    "0800-1459": [810, 795, 750, 705, 675, 645, 570, 540], // 13:30, 13:15, 12:30, ...
+    // 15:00 - 18:59
+    "1500-1859": [780, 765, 720, 675, 645, 600, 540, 540], // 13:00, 12:45, 12:00, ...
+    // 19:00 - 00:59
+    "1900-0059": [720, 705, 660, 615, 585, 540, 540, 540], // 12:00, 11:45, 11:00, ...
+    // 01:00 - 05:59
+    "0100-0559": [660, 645, 600, 570, 540, 540, 540, 540]  // 11:00, 10:45, 10:00, ...
+};
 
-function getTimeBand(reportTimeStr) { const timeVal = parseInt(reportTimeStr.replace(":", ""), 10); if (timeVal <= 359) return "0000-0359"; if (timeVal <= 459) return "0400-0459"; if (timeVal <= 559) return "0500-0559"; if (timeVal <= 759) return "0600-0759"; if (timeVal <= 1259) return "0800-1259"; if (timeVal <= 1659) return "1300-1659"; if (timeVal <= 2159) return "1700-2159"; if (timeVal <= 2359) return "2200-2359"; return null; }
-function formatMinutesToHHMM(totalMinutes) { if (totalMinutes < 0) { totalMinutes += 24 * 60; } const h = Math.floor(totalMinutes / 60) % 24; const m = totalMinutes % 60; return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`; }
+// ▼▼▼ ฟังก์ชัน getTimeBand ที่อัปเดตแล้วให้ตรงกับตารางใหม่ ▼▼▼
+function getTimeBand(reportTimeStr) {
+    const timeVal = parseInt(reportTimeStr.replace(":", ""), 10);
+    if (timeVal >= 600 && timeVal <= 759) return "0600-0759";
+    if (timeVal >= 800 && timeVal <= 1459) return "0800-1459";
+    if (timeVal >= 1500 && timeVal <= 1859) return "1500-1859";
+    // สำหรับช่วง 19:00 - 00:59 ที่ข้ามวัน
+    if ((timeVal >= 1900 && timeVal <= 2359) || (timeVal >= 0 && timeVal <= 59)) return "1900-0059";
+    if (timeVal >= 100 && timeVal <= 559) return "0100-0559";
+    return null; // ถ้าไม่เข้าเงื่อนไขไหนเลย
+}
 
-// --- Event Listeners ---
+// --- ฟังก์ชันช่วยเหลือ (ไม่มีการเปลี่ยนแปลง) ---
+function formatMinutesToHHMM(totalMinutes) {
+    if (totalMinutes < 0) {
+        totalMinutes += 24 * 60;
+    }
+    const h = Math.floor(totalMinutes / 60) % 24;
+    const m = totalMinutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+// --- Event Listeners (ไม่มีการเปลี่ยนแปลง) ---
 document.getElementById('calculateFdpBtn').addEventListener('click', () => {
     const reportTimeStr = document.getElementById('reportTime').value;
     const sectors = parseInt(document.getElementById('sectors').value, 10);
-    const departureTimeStr = document.getElementById('departureTime').value; // รับค่าเวลาเครื่องออก
     const resultDiv = document.getElementById('detailedFdpResult');
 
-    if (!reportTimeStr || !sectors || !departureTimeStr) {
-        alert("กรุณากรอกข้อมูลให้ครบ: เวลาที่รายงานตัว, เวลาเครื่องออก และจำนวนเที่ยวบิน");
+    if (!reportTimeStr || !sectors) {
+        alert("กรุณากรอกข้อมูลให้ครบ: เวลาที่รายงานตัว และจำนวนเที่ยวบิน");
+        // ซ่อนผลลัพธ์เก่าถ้ามี
+        resultDiv.style.display = 'none';
         return;
     }
 
     const timeBand = getTimeBand(reportTimeStr);
     if (!timeBand) {
-        alert("เวลาที่รายงานตัวไม่ถูกต้อง");
+        alert("ไม่พบช่วงเวลาสำหรับคำนวณ FDP กรุณาตรวจสอบเวลาที่รายงานตัว");
+        resultDiv.style.display = 'none';
         return;
     }
 
     const fdpLimits = TABLE_A_FDP_MINUTES[timeBand];
     let maxFdpMinutes;
-    if (sectors > fdpLimits.length) {
+
+    if (sectors >= fdpLimits.length) {
+        // ถ้าบิน 8 เที่ยวหรือมากกว่า ให้ใช้ค่าสุดท้ายใน array
         maxFdpMinutes = fdpLimits[fdpLimits.length - 1];
     } else {
+        // Sector เริ่มที่ 1 แต่ Array index เริ่มที่ 0
         maxFdpMinutes = fdpLimits[sectors - 1];
     }
 
@@ -37,7 +72,6 @@ document.getElementById('calculateFdpBtn').addEventListener('click', () => {
     const fdpEndTimeTotalMinutes = reportTimeTotalMinutes + maxFdpMinutes;
     const fdpEndTimeStr = formatMinutesToHHMM(fdpEndTimeTotalMinutes);
 
-    // สมมติว่าเวลา Taxi เข้าหลุมจอดคือ 15 นาที
     const landingTimeTotalMinutes = fdpEndTimeTotalMinutes - 15; 
     const landingTimeStr = formatMinutesToHHMM(landingTimeTotalMinutes);
 
@@ -47,7 +81,7 @@ document.getElementById('calculateFdpBtn').addEventListener('click', () => {
     document.getElementById('latestLandingTime').textContent = landingTimeStr + " (โดยประมาณ)";
     document.getElementById('onBlocksTime').textContent = fdpEndTimeStr;
     
-    resultDiv.style.display = 'block'; // แสดงผลลัพธ์
+    resultDiv.style.display = 'block';
 });
 
 document.getElementById('calculateRestBtn').addEventListener('click', () => {
@@ -64,11 +98,9 @@ document.getElementById('calculateRestBtn').addEventListener('click', () => {
     resultDiv.textContent = `ต้องพักอย่างน้อย: ${minRestHours} ชั่วโมง`;
 });
 
-// ซ่อน Service Worker ไว้ก่อนเพื่อความง่ายในการทดสอบ
-/*
+// โค้ด Service Worker สำหรับ PWA (ไม่มีการเปลี่ยนแปลง)
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then(reg => console.log('Service Worker: Registered')).catch(err => console.log(`Service Worker: Error: ${err}`))
+        navigator.serviceWorker.register('./sw.js').then(reg => console.log('Service Worker: Registered', reg)).catch(err => console.log(`Service Worker: Error: ${err}`))
     });
 }
-*/
